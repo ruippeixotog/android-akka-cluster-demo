@@ -13,7 +13,6 @@ import com.typesafe.config.ConfigFactory
 
 trait Act {
   def addEntry(text: String)
-  def runOnUiThread(runnable: Runnable)
   def log(tag: String, msg: String)
 }
 
@@ -39,7 +38,9 @@ class MainActivity extends Activity with TypedActivity with Act {
     actorSystem.map(_.actorOf(Props(new ClusterListenerActor(this))))
   }
 
-  def addEntry(text: String) {
+  private def onUI(block: => Unit) = runOnUiThread(new Runnable { def run() = block })
+
+  def addEntry(text: String) = onUI {
     val tv = new TextView(this)
     tv.setText(text)
     findView(TR.log_view).addView(tv)
@@ -62,6 +63,5 @@ object MainApp extends App with Act {
   system.actorOf(Props(new ClusterListenerActor(this)))
 
   def addEntry(text: String) = println("ENTRY: " + text)
-  def runOnUiThread(runnable: Runnable) = runnable.run()
   def log(tag: String, msg: String) = println(tag + " " + msg)
 }
