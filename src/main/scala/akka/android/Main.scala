@@ -11,12 +11,12 @@ import android.util.Log
 import android.widget.TextView
 import com.typesafe.config.ConfigFactory
 
-trait Act {
+trait AppInterface {
   def addEntry(text: String)
   def log(tag: String, msg: String)
 }
 
-class MainActivity extends Activity with TypedActivity with Act {
+class MainActivity extends Activity with TypedActivity with AppInterface {
   var actorSystem = Option.empty[ActorSystem]
 
   override def onCreate(savedInstanceState: Bundle) = {
@@ -27,12 +27,9 @@ class MainActivity extends Activity with TypedActivity with Act {
       val connInfo = getSystemService(WIFI_SERVICE).asInstanceOf[WifiManager].getConnectionInfo
       Formatter.formatIpAddress(connInfo.getIpAddress)
     }
-    Log.e("TAG", "Own address: " + ipAddress)
 
     val customConf = ConfigFactory.parseString(s"akka.remote.netty.tcp.hostname = $ipAddress")
     val config = customConf.withFallback(ConfigFactory.load)
-
-    Log.e("TAG", "Hostname value is " + config.getString("akka.remote.netty.tcp.hostname"))
 
     actorSystem = Some(ActorSystem("AndroidCluster", config))
     actorSystem.map(_.actorOf(Props(new ClusterListenerActor(this))))
@@ -58,7 +55,7 @@ class MainActivity extends Activity with TypedActivity with Act {
   }
 }
 
-object MainApp extends App with Act {
+object MainApp extends App with AppInterface {
   val system = ActorSystem("AndroidCluster")
   system.actorOf(Props(new ClusterListenerActor(this)))
 

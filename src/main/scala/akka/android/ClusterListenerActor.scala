@@ -31,16 +31,16 @@ object ClusterListenerActor {
   val UdpPort = 5225
 }
 
-class ClusterListenerActor(activity: Act) extends Actor {
+class ClusterListenerActor(app: AppInterface) extends Actor {
 
   implicit def system = context.system
   implicit def executionContext = context.system.dispatcher
 
-  activity.log(TAG, "Trying to bind to UDP address " + SocketAddress(UdpPort))
+  app.log(TAG, "Trying to bind to UDP address " + SocketAddress(UdpPort))
   IO(Udp) ! Udp.Bind(self, SocketAddress(UdpPort))
 
   val cluster = Cluster(context.system)
-  activity.log(TAG, "Cluster self address is " + cluster.selfAddress)
+  app.log(TAG, "Cluster self address is " + cluster.selfAddress)
 
   val clusterPort = cluster.selfAddress.port.getOrElse(2550)
 
@@ -49,7 +49,7 @@ class ClusterListenerActor(activity: Act) extends Actor {
   def waitingForBinding: Receive = {
 
     case Udp.Bound(localAddr) =>
-      activity.log(TAG, "Bound to UDP address " + localAddr)
+      app.log(TAG, "Bound to UDP address " + localAddr)
 
       sender() ! Udp.Send(UdpPing, SocketAddress.broadcast(UdpPort))
       context.system.scheduler.scheduleOnce(15 seconds, self, PongTimeout)
@@ -59,17 +59,17 @@ class ClusterListenerActor(activity: Act) extends Actor {
   def waitingForPong(udp: ActorRef): Receive = {
 
     case Udp.Received(UdpPong, SocketAddress(udpSenderAddr, _)) =>
-      activity.log(TAG, "Found first host " + udpSenderAddr)
+      app.log(TAG, "Found first host " + udpSenderAddr)
 
       val addr = Address("akka.tcp", "AndroidCluster", udpSenderAddr.getHostAddress, clusterPort)
-      activity.log(TAG, "Host cluster address is " + addr)
+      app.log(TAG, "Host cluster address is " + addr)
 
       cluster.join(addr)
       cluster.subscribe(self, classOf[ClusterDomainEvent])
       context.become(joinedCluster(udp))
 
     case PongTimeout =>
-      activity.log(TAG, "No hosts found")
+      app.log(TAG, "No hosts found")
       cluster.join(cluster.selfAddress)
       cluster.subscribe(self, classOf[ClusterDomainEvent])
       context.become(joinedCluster(udp))
@@ -77,13 +77,13 @@ class ClusterListenerActor(activity: Act) extends Actor {
 
   def joinedCluster(udp: ActorRef): Receive = {
     case Udp.Received(UdpPing, udpSender) =>
-      activity.log(TAG, "Received ping from " + udpSender.getHostName)
+      app.log(TAG, "Received ping from " + udpSender.getHostName)
       udp ! Udp.Send(UdpPong, udpSender)
 
     case ccs: CurrentClusterState =>
-      activity.addEntry("Current cluster members: " + ccs.members.mkString(", "))
+      app.addEntry("Current cluster members: " + ccs.members.mkString(", "))
 
-    case MemberUp(member) => activity.addEntry("Member up: " + member)
-    case MemberRemoved(member, _) => activity.addEntry("Member down: " + member)
+    case MemberUp(member) => app.addEntry("Member up: " + member)
+    case MemberRemoved(member, _) => app.addEntry("Member down: " + member)
   }
 }
